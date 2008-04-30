@@ -4,5 +4,6 @@ module HardwareMonitor = CnBAnalyzer
     untracked bool   preSwapOn = true // hackswap the FED header
     untracked string rootFile = "FED_DQM_Data.root"
     untracked string rootFileDirectory = "/tmp"
+    untracked bool   buildAllHistograms = false
 }
 
