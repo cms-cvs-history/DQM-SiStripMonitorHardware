@@ -1,0 +1,8 @@
+module HardwareMonitor = CnBAnalyzer
+{         
+    untracked bool   swapOn = true // non zero value does the DAQ header offset, etc.
+    untracked bool   preSwapOn = true // hackswap the FED header
+    untracked string rootFile = "FED_DQM_Data.root"
+    untracked string rootFileDirectory = "/tmp"
+}
+

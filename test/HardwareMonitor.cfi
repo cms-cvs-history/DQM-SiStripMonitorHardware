@@ -1,0 +1,5 @@
+module HardwareMonitor = CnBAnalyzer
+{         
+    untracked bool swapOn = true // non zero value does the DAQ header offset, etc.
+}
+
