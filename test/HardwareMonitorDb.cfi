@@ -1,0 +1,14 @@
+module HardwareMonitor = CnBAnalyzer
+{         
+    untracked bool swapOn        = true // non zero value does the DAQ header offset, etc.
+    untracked bool useCablingDb  = true
+
+    include "OnlineDB/SiStripConfigDb/data/SiStripConfigDb.cfi"
+    replace SiStripConfigDb.UsingDb      = true
+    replace SiStripConfigDb.ConfDb       = "cms_trk_tkcc/tkcc2008@cms_omds_lb"
+    replace SiStripConfigDb.Partitions   = { "TOB_28-MAR-2008_5" }
+    replace SiStripConfigDb.RunNumber    = 39475
+    
+    es_source FedCablingFromConfigDb = SiStripFedCablingBuilderFromDb {} 
+}
+
