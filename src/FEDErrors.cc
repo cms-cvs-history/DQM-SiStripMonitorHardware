@@ -315,6 +315,7 @@ bool FEDErrors::fillFEErrors(const sistrip::FEDBuffer* aBuffer)
       continue;
     }
     if (aBuffer->majorityAddressErrorForFEUnit(iFE)) {
+      lFeErr.BadMajorityAddress = true;
       foundBadMajority = true;
       addBadFE(lFeErr);
     }
