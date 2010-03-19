@@ -10,39 +10,33 @@
 //
 // Original Author:  Nicholas Cripps
 //         Created:  2008/09/16
-// $Id: SiStripFEDDataCheck.cc,v 1.11 2010/03/03 18:13:37 amagnan Exp $
+// $Id: SiStripFEDDataCheck.cc,v 1.6 2008/11/06 16:05:49 nc302 Exp $
 //
 //
-#include <memory>
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
-#include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
-#include "FWCore/Utilities/interface/InputTag.h"
-#include "FWCore/Utilities/interface/Exception.h"
+#include "FWCore/ParameterSet/interface/InputTag.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
-#include "FWCore/ServiceRegistry/interface/Service.h"
-
 #include "DataFormats/FEDRawData/interface/FEDRawDataCollection.h"
 #include "DataFormats/FEDRawData/interface/FEDRawData.h"
 #include "DataFormats/FEDRawData/interface/FEDNumbering.h"
 #include "DataFormats/SiStripCommon/interface/ConstantsForHardwareSystems.h"
-
-#include "CondFormats/DataRecord/interface/SiStripFedCablingRcd.h"
-#include "CondFormats/SiStripObjects/interface/SiStripFedCabling.h"
-
+#include "FWCore/ServiceRegistry/interface/Service.h"
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "DQMServices/Core/interface/MonitorElement.h"
-
 #include "EventFilter/SiStripRawToDigi/interface/SiStripFEDBuffer.h"
-
-#include "DQM/SiStripMonitorHardware/interface/FEDErrors.hh"
+#include "FWCore/Framework/interface/ESHandle.h"
+#include "CondFormats/DataRecord/interface/SiStripFedCablingRcd.h"
+#include "CondFormats/SiStripObjects/interface/SiStripFedCabling.h"
+#include "FWCore/Utilities/interface/Exception.h"
+#include <memory>
 
 //
-// Class declaration
+// Class decleration
 //
 
 class SiStripFEDCheckPlugin : public edm::EDAnalyzer
@@ -51,7 +45,7 @@ class SiStripFEDCheckPlugin : public edm::EDAnalyzer
   explicit SiStripFEDCheckPlugin(const edm::ParameterSet&);
   ~SiStripFEDCheckPlugin();
  private:
-  virtual void beginJob();
+  virtual void beginJob(const edm::EventSetup&);
   virtual void analyze(const edm::Event&, const edm::EventSetup&);
   virtual void endJob();
   
@@ -61,7 +55,7 @@ class SiStripFEDCheckPlugin : public edm::EDAnalyzer
   
   inline void fillPresent(unsigned int fedId, bool present);
   inline void fillFatalError(unsigned int fedId, bool fatalError);
-  inline void fillNonFatalError(unsigned int fedId, float nonFatalError);
+  inline void fillNonFatalError(unsigned int fedId, bool nonFatalError);
   
   void doUpdateIfNeeded();
   void updateHistograms();
@@ -116,7 +110,7 @@ SiStripFEDCheckPlugin::SiStripFEDCheckPlugin(const edm::ParameterSet& iConfig)
     checkChannelStatusBits_(iConfig.getUntrackedParameter<bool>("CheckChannelStatus",true)),
     cablingCacheId_(0)
 {
-  if (printDebug_ && !doPayloadChecks_ && (checkChannelLengths_ || checkPacketCodes_ || checkFELengths_)) {
+  if (!doPayloadChecks_ && (checkChannelLengths_ || checkPacketCodes_ || checkFELengths_ || checkChannelStatusBits_) ) {
     std::stringstream ss;
     ss << "Payload checks are disabled but individual payload checks have been enabled. The following payload checks will be skipped: ";
     if (checkChannelLengths_) ss << "Channel length check, ";
@@ -145,29 +139,16 @@ SiStripFEDCheckPlugin::analyze(const edm::Event& iEvent, const edm::EventSetup& 
   
   //get raw data
   edm::Handle<FEDRawDataCollection> rawDataCollectionHandle;
-  const bool gotData = iEvent.getByLabel(rawDataTag_,rawDataCollectionHandle);
-  if (!gotData) {
-    //module is required to silently do nothing when data is not present
-    return;
-  }
+  iEvent.getByLabel(rawDataTag_,rawDataCollectionHandle);
   const FEDRawDataCollection& rawDataCollection = *rawDataCollectionHandle;
   
   //get FED IDs
   const unsigned int siStripFedIdMin = FEDNumbering::MINSiStripFEDID;
   const unsigned int siStripFedIdMax = FEDNumbering::MAXSiStripFEDID;
   
-  //FED errors
-  FEDErrors lFedErrors;
-
   //loop over siStrip FED IDs
   for (unsigned int fedId = siStripFedIdMin; fedId <= siStripFedIdMax; fedId++) {
     const FEDRawData& fedData = rawDataCollection.FEDData(fedId);
-
-    //create an object to fill all errors
-    //third param to false:save time by not initialising anything not used here
-    lFedErrors.initialise(fedId,cabling_,false);
-
-
     //check data exists
     if (!fedData.size() || !fedData.data()) {
       fillPresent(fedId,0);
@@ -175,62 +156,13 @@ SiStripFEDCheckPlugin::analyze(const edm::Event& iEvent, const edm::EventSetup& 
     }
     //fill buffer present histogram
     fillPresent(fedId,1);
-
     //check for fatal errors
-    //no need for debug output
-    bool hasFatalErrors = false;
-    float rateNonFatal = 0;
-
-    std::auto_ptr<const sistrip::FEDBuffer> buffer;
-
-    if (!lFedErrors.fillFatalFEDErrors(fedData,0)) {
-      hasFatalErrors = true;
-    }
-    else {
-      //need to construct full object to go any further
-      if (doPayloadChecks_ || checkChannelStatusBits_) {
-	
-	buffer.reset(new sistrip::FEDBuffer(fedData.data(),fedData.size(),true));
-	if (doPayloadChecks_) {
-
-	  bool channelLengthsOK = checkChannelLengths_ ? buffer->checkChannelLengthsMatchBufferLength() : true;
-	  bool channelPacketCodesOK = checkPacketCodes_ ? buffer->checkChannelPacketCodes() : true;
-	  bool feLengthsOK = checkFELengths_ ? buffer->checkFEUnitLengths() : true;
-	  if ( !channelLengthsOK ||
-	       !channelPacketCodesOK ||
-	       !feLengthsOK ) {
-	    hasFatalErrors = true;
-	  }
-	}
-	if (checkChannelStatusBits_) rateNonFatal = lFedErrors.fillNonFatalFEDErrors(buffer.get(),cabling_);
-      }
-    }
-
-    if (hasFatalErrors) {
+    if (hasFatalError(fedData,fedId)) {
       fillFatalError(fedId,1);
-      if (printDebug_) {
-	if (!buffer.get()) buffer.reset(new sistrip::FEDBuffer(fedData.data(),fedData.size(),true));
-	edm::LogInfo("SiStripFEDCheck") << "Fatal error with FED ID " << fedId << ". Check summary: " 
-					<< std::endl << buffer->checkSummary() << std::endl;
-	std::stringstream ss;
-	buffer->dump(ss);
-	edm::LogInfo("SiStripFEDCheck") << ss.str();
-      }
-    }
-    else {
+    } else {
       fillFatalError(fedId,0);
       //fill non-fatal errors histogram if there were no fatal errors
-      fillNonFatalError(fedId,rateNonFatal);
-      if (printDebug_ && rateNonFatal > 0) {
-	if (!buffer.get()) buffer.reset(new sistrip::FEDBuffer(fedData.data(),fedData.size(),true));
-	edm::LogInfo("SiStripFEDCheck") << "Non-fatal error with FED ID " << fedId 
-					<< " for " << rateNonFatal << " of the channels. Check summary: " 
-					<< std::endl << buffer->checkSummary() << std::endl;
-	std::stringstream ss;
-	buffer->dump(ss);
-	edm::LogInfo("SiStripFEDCheck") << ss.str();
-      }
-
+      fillNonFatalError(fedId,hasNonFatalError(fedData,fedId) ? 1 : 0);
     }
   }//loop over FED IDs
   
@@ -240,7 +172,7 @@ SiStripFEDCheckPlugin::analyze(const edm::Event& iEvent, const edm::EventSetup& 
 
 // ------------ method called once each job just before starting event loop  ------------
 void 
-SiStripFEDCheckPlugin::beginJob()
+SiStripFEDCheckPlugin::beginJob(const edm::EventSetup&)
 {
   //get FED IDs
   const unsigned int siStripFedIdMin = FEDNumbering::MINSiStripFEDID;
@@ -275,6 +207,100 @@ SiStripFEDCheckPlugin::endJob()
 }
 
 
+bool SiStripFEDCheckPlugin::hasFatalError(const FEDRawData& fedData, unsigned int fedId) const
+{
+  bool fatalError = false;
+  //first build a base buffer object to do basic checks (without checking channel data)
+  const sistrip::FEDBufferBase buffer(fedData.data(),fedData.size(),true);
+  //check for errors signaled in DAQ header and trailer and that length is consistent with buffer length
+  if (!buffer.doDAQHeaderAndTrailerChecks()) fatalError = true;
+  //check that buffer format byte is valid
+  if (!buffer.checkBufferFormat()) fatalError = true;
+  //check CRC
+  if (!buffer.checkCRC()) fatalError = true;
+  //if there was an error then provide info
+  if (fatalError) {
+    if (printDebug_) {
+      edm::LogInfo("SiStripFEDCheck") << "Fatal error with FED ID " << fedId << ". Check summary: " 
+                                      << std::endl << buffer.checkSummary() << std::endl;
+      std::stringstream ss;
+      buffer.dump(ss);
+      edm::LogInfo("SiStripFEDCheck") << ss.str();
+    }
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool SiStripFEDCheckPlugin::hasNonFatalError(const FEDRawData& fedData, unsigned int fedId) const
+{
+  const sistrip::FEDBufferBase baseBuffer(fedData.data(),fedData.size(),true);
+  if (!baseBuffer.doTrackerSpecialHeaderChecks()) {
+    if (printDebug_) {
+      edm::LogInfo("SiStripFEDCheck") << "Error with header for FED ID " << fedId << ". Check summary: "
+                                      << std::endl << baseBuffer.checkSummary() << std::endl;
+      std::stringstream ss;
+      baseBuffer.dump(ss);
+      edm::LogInfo("SiStripFEDCheck") << ss.str();
+    }
+    return true;
+  }
+  if (doPayloadChecks_) {
+    //check that channels can all be found in buffer
+    std::auto_ptr<const sistrip::FEDBuffer> pBuffer;
+    try {
+      pBuffer.reset(new sistrip::FEDBuffer(fedData.data(),fedData.size()));
+    } catch (const cms::Exception& e) {
+      pBuffer.reset(new sistrip::FEDBuffer(fedData.data(),fedData.size(),true));
+      if (printDebug_) {
+        edm::LogInfo("SiStripFEDCheck") << "Error constructing buffer object for FED ID " << fedId
+                                        << std::endl << e.what() << std::endl << "Check summary: "
+                                        << std::endl << pBuffer->checkSummary() << std::endl;
+        std::stringstream ss;
+        pBuffer->dump(ss);
+        edm::LogInfo("SiStripFEDCheck") << ss.str();
+      }
+      return true;
+    }
+    //check that all fields in buffer are valid and that there are no problems with data
+    bool channelLengthsOK = checkChannelLengths_ ? pBuffer->checkChannelLengthsMatchBufferLength() : true;
+    bool channelPacketCodesOK = checkPacketCodes_ ? pBuffer->checkChannelPacketCodes() : true;
+    bool feLengthsOK = checkFELengths_ ? pBuffer->checkFEUnitLengths() : true;
+    if (!pBuffer->doChecks() ||
+        !channelLengthsOK ||
+        !channelPacketCodesOK ||
+        !feLengthsOK ) {
+      if (printDebug_) {
+        edm::LogInfo("SiStripFEDCheck") << "Error with FED ID " << fedId << ". Check summary: "
+                                        << std::endl << pBuffer->checkSummary() << std::endl;
+        std::stringstream ss;
+        pBuffer->dump(ss);
+        edm::LogInfo("SiStripFEDCheck") << ss.str();
+      }
+      return true;
+    }
+    //check that channels in cabling have no bad status bits and are enabled
+    if (checkChannelStatusBits_) {
+      for (unsigned int c = 0; c < sistrip::FEDCH_PER_FED; c++) {
+        if (!cabling_->connection(fedId,c).isConnected()) continue;
+        else if (!pBuffer->channelGood(c)) {
+          if (printDebug_) {
+            edm::LogInfo("SiStripFEDCheck") << "Error with FED ID " << fedId << " channel " << c << ". Check summary: "
+                                            << std::endl << pBuffer->checkSummary() << std::endl;
+            std::stringstream ss;
+            pBuffer->dump(ss);
+            edm::LogInfo("SiStripFEDCheck") << ss.str();
+          }
+          return true;
+        }
+      }
+    }
+  }
+  //if the checks above all passed then there are no errors
+  return false;
+}
+
 void SiStripFEDCheckPlugin::updateCabling(const edm::EventSetup& eventSetup)
 {
   uint32_t currentCacheId = eventSetup.get<SiStripFedCablingRcd>().cacheIdentifier();
@@ -299,24 +325,23 @@ void SiStripFEDCheckPlugin::fillFatalError(unsigned int fedId, bool fatalError)
   if (updateFrequency_) {
     if (fatalError) fedFatalErrorBinContents_[fedId]++;
   } else {
-    //fedFatalErrors_->Fill( fatalError ? 1 : 0 );
-    if (fatalError) fedFatalErrors_->Fill(fedId);
+    fedFatalErrors_->Fill( fatalError ? 1 : 0 );
   }
 }
 
-void SiStripFEDCheckPlugin::fillNonFatalError(unsigned int fedId, float nonFatalError)
+void SiStripFEDCheckPlugin::fillNonFatalError(unsigned int fedId, bool nonFatalError)
 {
   if (updateFrequency_) {
-    if (nonFatalError>0) fedNonFatalErrorBinContents_[fedId]++;//nonFatalError;
+    if (nonFatalError) fedNonFatalErrorBinContents_[fedId]++;
   } else {
-    if (nonFatalError>0) fedNonFatalErrors_->Fill(fedId);
+    fedNonFatalErrors_->Fill( nonFatalError ? 1 : 0 );
   }
 }
 
 void SiStripFEDCheckPlugin::doUpdateIfNeeded()
 {
   eventCount_++;
-  if (updateFrequency_ && (eventCount_%updateFrequency_ == 0)) {
+  if (updateFrequency_ && !(eventCount_%updateFrequency_)) {
     updateHistograms();
   }
 }
@@ -338,7 +363,7 @@ void SiStripFEDCheckPlugin::updateHistograms()
     fedFatalErrors_->getTH1()->SetBinContent(bin,fedFatalErrorsBin);
     entriesFatalErrors += fedFatalErrorsBin;
     unsigned int fedNonFatalErrorsBin = fedNonFatalErrorBinContents_[fedId];
-    fedNonFatalErrors_->getTH1()->SetBinContent(bin,fedNonFatalErrorsBin);
+    fedNonFatalErrors_->getTH1()->SetBinContent(bin,fedFatalErrorsBin);
     entriesNonFatalErrors += fedNonFatalErrorsBin;
   }
   fedsPresent_->getTH1()->SetEntries(entriesFedsPresent);

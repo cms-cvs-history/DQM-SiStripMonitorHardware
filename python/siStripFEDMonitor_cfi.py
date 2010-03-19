@@ -16,7 +16,8 @@ siStripFEDMonitor = cms.EDAnalyzer("SiStripFEDMonitorPlugin",
   #Whether to write the DQM store to a file at the end of the run and the file name
   WriteDQMStore = cms.untracked.bool(False),
   DQMStoreFileName = cms.untracked.string('DQMStore.root'),
-  #Histogram configuration
+
+  #Historgram configuration
   #Global/summary histograms
   DataPresentHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
   AnyFEDErrorsHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
@@ -29,25 +30,6 @@ siStripFEDMonitor = cms.EDAnalyzer("SiStripFEDMonitorPlugin",
   FEOverflowsHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
   FEMissingHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
   BadMajorityAddressesHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
-  FETimeDiffTIBHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
-  FETimeDiffTOBHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
-  FETimeDiffTECBHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
-  FETimeDiffTECFHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
-  ApveAddressHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
-  FeMajAddressHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
-  #medians per APV for all channels, all events
-  MedianAPV0HistogramConfig = cms.untracked.PSet(
-    Enabled = cms.untracked.bool(True),
-    NBins = cms.untracked.uint32(256),
-    Min = cms.untracked.double(0),
-    Max = cms.untracked.double(1024)
-    ),
-  MedianAPV1HistogramConfig = cms.untracked.PSet(
-    Enabled = cms.untracked.bool(True),
-    NBins = cms.untracked.uint32(256),
-    Min = cms.untracked.double(0),
-    Max = cms.untracked.double(1024)
-    ),        
   #Sub sets of DAQ problems
   DataMissingHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
   BadIDsHistogramConfig = cms.untracked.PSet( Enabled = cms.untracked.bool(True) ),
@@ -156,24 +138,6 @@ siStripFEDMonitor = cms.EDAnalyzer("SiStripFEDMonitorPlugin",
     NBins = cms.untracked.uint32(353),
     Min = cms.untracked.double(0),
     Max = cms.untracked.double(42240)
-  ),
-  nTotalBadChannelsHistogramConfig = cms.untracked.PSet(
-    Enabled = cms.untracked.bool(True),
-    NBins = cms.untracked.uint32(353),
-    Min = cms.untracked.double(0),
-    Max = cms.untracked.double(42240)
-  ),
-  nTotalBadActiveChannelsHistogramConfig = cms.untracked.PSet(
-    Enabled = cms.untracked.bool(True),
-    NBins = cms.untracked.uint32(353),
-    Min = cms.untracked.double(0),
-    Max = cms.untracked.double(42240)
-  ),
-  TimeHistogramConfig = cms.untracked.PSet(
-    Enabled = cms.untracked.bool(False),
-    NBins = cms.untracked.uint32(600),
-    Min = cms.untracked.double(0),
-    Max = cms.untracked.double(3600)
   ),
   nTotalBadChannelsvsTimeHistogramConfig = cms.untracked.PSet(
     Enabled = cms.untracked.bool(True),

@@ -17,7 +17,7 @@
 #define DQM_SiStripMonitorHardware_FEDErrors_HH
 
 #include <sstream>
-#include <iostream>
+
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "DataFormats/FEDRawData/interface/FEDRawData.h"
@@ -80,13 +80,9 @@ public:
 
   struct FELevelErrors {
     unsigned short FeID;
-    unsigned short SubDetID;
     bool Overflow;
     bool Missing;
     bool BadMajorityAddress;
-    int TimeDifference;
-    unsigned int Apve;
-    unsigned int FeMaj;
   };
 
   struct ChannelLevelErrors {
@@ -95,6 +91,7 @@ public:
     bool IsActive;
     bool Unlocked;
     bool OutOfSync;
+
     bool operator <(const ChannelLevelErrors & aErr) const;
   };
 
@@ -116,46 +113,27 @@ public:
   ~FEDErrors();
 
   void initialise(const unsigned int aFedID,
-		  const SiStripFedCabling* aCabling,
-		  bool initVars = true);
+		  const SiStripFedCabling* aCabling);
 
   //return false if no data, with or without cabled channels.
   bool checkDataPresent(const FEDRawData& aFedData);
 
   //perform a sanity check with unpacking code check
-  bool failUnpackerFEDCheck();
+  bool failUnpackerFEDCheck(const FEDRawData & fedData);
 
   //return true if there were no errors at the level they are analysing
   //ie analyze FED returns true if there were no FED level errors which prevent the whole FED being unpacked
-  bool fillFatalFEDErrors(const FEDRawData& aFedData,
-			  const unsigned int aPrintDebug);
-
-  //expensive check: fatal but kept separate
-  bool fillCorruptBuffer(const sistrip::FEDBuffer* aBuffer);
-
-  //FE/Channel check: rate of channels with error (only considering connected channels)
-  float fillNonFatalFEDErrors(const sistrip::FEDBuffer* aBuffer,
-			      const SiStripFedCabling* aCabling = 0);
-
   //fill errors: define the order of importance.
   bool fillFEDErrors(const FEDRawData& aFedData,
 		     bool & aFullDebug,
-		     const unsigned int aPrintDebug,
-		     unsigned int & aCounterMonitoring,
-		     unsigned int & aCounterUnpacker,
-		     std::vector<uint16_t> & aMedians,
-		     const bool aDoMeds
+		     const unsigned int aPrintDebug
 		     );
 
   bool fillFEErrors(const sistrip::FEDBuffer* aBuffer);
 
   bool fillChannelErrors(const sistrip::FEDBuffer* aBuffer,
 			 bool & aFullDebug,
-			 const unsigned int aPrintDebug,
-			 unsigned int & aCounterMonitoring,
-			 unsigned int & aCounterUnpacker,
-			 std::vector<uint16_t> & aMedians,
-			 const bool aDoMeds
+			 const unsigned int aPrintDebug
 			 );
 
   //1--Add all channels of a FED if anyFEDErrors or corruptBuffer
@@ -222,12 +200,8 @@ private:
 
   unsigned int fedID_;
 
-  std::vector<bool> connected_;
-  std::vector<unsigned int> detid_;
-  std::vector<unsigned short> nChInModule_;
+  bool connected_[sistrip::FEDCH_PER_FED];
 
-  std::vector<unsigned short> subDetId_;
-  
   FECounters feCounter_;
   FEDLevelErrors fedErrors_;
   std::vector<FELevelErrors> feErrors_;
