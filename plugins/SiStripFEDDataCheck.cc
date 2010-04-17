@@ -10,7 +10,7 @@
 //
 // Original Author:  Nicholas Cripps
 //         Created:  2008/09/16
-// $Id: SiStripFEDDataCheck.cc,v 1.11 2010/03/03 18:13:37 amagnan Exp $
+// $Id: SiStripFEDDataCheck.cc,v 1.12 2010/03/18 19:06:09 amagnan Exp $
 //
 //
 #include <memory>
@@ -100,7 +100,7 @@ class SiStripFEDCheckPlugin : public edm::EDAnalyzer
 //
 
 SiStripFEDCheckPlugin::SiStripFEDCheckPlugin(const edm::ParameterSet& iConfig)
-  : rawDataTag_(iConfig.getUntrackedParameter<edm::InputTag>("RawDataTag",edm::InputTag("source",""))),
+  : rawDataTag_(iConfig.getParameter<edm::InputTag>("RawDataTag")),
     dirName_(iConfig.getUntrackedParameter<std::string>("DirName","SiStrip/FEDIntegrity/")),
     printDebug_(iConfig.getUntrackedParameter<bool>("PrintDebugMessages",false)),
     writeDQMStore_(iConfig.getUntrackedParameter<bool>("WriteDQMStore",false)),
